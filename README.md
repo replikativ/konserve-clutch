@@ -4,9 +4,10 @@ A CouchDB implementation of the [konserve kv-protocol](https://github.com/ghubbe
 
 ## Usage
 
-Add `[net.polyc0l0r/konserve "0.1.0-SNAPSHOT"]` to your dependencies.
+Add `[net.polyc0l0r/konserve "0.1.0"]` to your dependencies.
 
 ~~~clojure
+  (require '[konserve-couch.core :refer :all])
   (def couch-store (<!! (new-couch-store "geschichte" (atom {}))))
 
   (<!! (-exists? couch-store  "john"))
@@ -19,6 +20,11 @@ Add `[net.polyc0l0r/konserve "0.1.0-SNAPSHOT"]` to your dependencies.
   (<!! (-assoc-in couch-store ["peter"] (Test. 5)))
   (<!! (-get-in couch-store ["peter"]))
 ~~~
+
+## Changes
+
+### 0.1.0
+- factor out from konserve
 
 ## License
 
