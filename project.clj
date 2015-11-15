@@ -1,8 +1,8 @@
-(defproject konserve-couch "0.1.0"
+(defproject io.replikativ/konserve-couch "0.1.1"
   :description "CouchDB backend for konserve."
-  :url "https://github.com/ghubber/konserve-couch"
+  :url "https://github.com/whilo/konserve-couch"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.6.0"]
-                 [net.polyc0l0r/konserve "0.2.3"]
+  :dependencies [[org.clojure/clojure "1.7.0"]
+                 [io.replikativ/konserve "0.3.0"]
                  [com.ashafa/clutch "0.4.0"]])

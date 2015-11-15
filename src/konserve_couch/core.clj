@@ -1,17 +1,17 @@
 (ns konserve-couch.core
   "CouchDB store implemented with Clutch."
-  (:use konserve.literals)
-  (:require [konserve.platform :refer [read-string-safe]]
+  (:require [konserve.serializers :as ser]
+            [konserve.protocols :refer [-serialize -deserialize]]
             [clojure.core.async :as async
              :refer [<!! <! >! timeout chan alt! go go-loop]]
             [clojure.edn :as edn]
             [com.ashafa.clutch :refer [couch create!] :as cl]
-            [konserve.protocols :refer [IEDNAsyncKeyValueStore
-                                        -exists? -get-in -assoc-in -update-in]]))
+            [konserve.protocols :refer [PEDNAsyncKeyValueStore
+                                        -exists? -get-in -update-in]]))
 
 
-(defrecord CouchKeyValueStore [db tag-table]
-  IEDNAsyncKeyValueStore
+(defrecord CouchKeyValueStore [db serializer read-handlers write-handlers]
+  PEDNAsyncKeyValueStore
   (-exists? [this key]
     (go (try (cl/document-exists? db (pr-str key))
              (catch Exception e
@@ -25,53 +25,19 @@
                             pr-str
                             (cl/get-document db)
                             :edn-value
-                            (read-string-safe @tag-table))
+                            (-deserialize serializer read-handlers))
                        rkey)
                (catch Exception e
                  (ex-info "Could not read edn value."
                           {:type :read-error
                            :key fkey
                            :exception e}))))))
-  (-assoc-in [this key-vec value]
-    (go (try
-          (let [[fkey & rkey] key-vec
-                doc (cl/get-document db (pr-str fkey))]
-            ((fn trans [doc attempt]
-               (try (cond (and (not doc) value)
-                          (cl/put-document db {:_id (pr-str fkey)
-                                               :edn-value (pr-str (if-not (empty? rkey)
-                                                                    (assoc-in nil rkey value)
-                                                                    value))})
-                          (and (not doc) (not value))
-                          nil
-
-                          (not value)
-                          (cl/delete-document db doc)
-
-                          :else
-                          (cl/update-document db
-                                              doc
-                                              (fn [{v :edn-value :as old}]
-                                                (assoc old
-                                                  :edn-value (pr-str (if-not (empty? rkey)
-                                                                       (assoc-in (read-string-safe @tag-table v) rkey value)
-                                                                       value))))))
-                    (catch clojure.lang.ExceptionInfo e
-                      (if (< attempt 10)
-                        (trans (cl/get-document db (pr-str fkey)) (inc attempt))
-                        (throw e))))) doc 0)
-            nil)
-          (catch Exception e
-            (ex-info "Could not write edn value."
-                     {:type :write-error
-                      :key (first key)
-                      :exception e})))))
   (-update-in [this key-vec up-fn]
     (go (try
           (let [[fkey & rkey] key-vec
                 doc (cl/get-document db (pr-str fkey))]
             ((fn trans [doc attempt]
-               (let [old (->> doc :edn-value (read-string-safe @tag-table))
+               (let [old (->> doc :edn-value (-deserialize serializer read-handlers))
                      new (if-not (empty? rkey)
                            (update-in old rkey up-fn)
                            (up-fn old))]
@@ -79,7 +45,7 @@
                        [nil (get-in (->> (cl/put-document db {:_id (pr-str fkey)
                                                               :edn-value (pr-str new)})
                                          :edn-value
-                                         (read-string-safe @tag-table))
+                                         (-deserialize serializer read-handlers))
                                     rkey)]
 
                        (and (not doc) (not new))
@@ -90,18 +56,31 @@
 
                        :else
                        (let [old* (get-in old rkey)
-                             new (try (cl/update-document db
-                                                          doc
-                                                          (fn [{v :edn-value :as old}]
-                                                            (assoc old
-                                                              :edn-value (pr-str (if-not (empty? rkey)
-                                                                                   (update-in (read-string-safe @tag-table v) rkey up-fn)
-                                                                                   (up-fn (read-string-safe @tag-table v)))))))
+                             new (try (cl/update-document
+                                       db
+                                       doc
+                                       (fn [{v :edn-value :as old}]
+                                         (assoc old
+                                                :edn-value (-serialize
+                                                            serializer
+                                                            nil
+                                                            write-handlers
+                                                            (if-not (empty? rkey)
+                                                              (update-in (-deserialize
+                                                                          serializer
+                                                                          read-handlers
+                                                                          v)
+                                                                         rkey
+                                                                         up-fn)
+                                                              (up-fn (-deserialize
+                                                                      serializer
+                                                                      read-handlers
+                                                                      v)))))))
                                       (catch clojure.lang.ExceptionInfo e
                                         (if (< attempt 10)
                                           (trans (cl/get-document db (pr-str fkey)) (inc attempt))
                                           (throw e))))
-                             new* (-> (read-string-safe @tag-table (:edn-value new))
+                             new* (-> (-deserialize serializer read-handlers (:edn-value new))
                                       (get-in rkey))]
                          [old* new*])))) doc 0))
           (catch Exception e
@@ -114,11 +93,11 @@
 (defn new-couch-store
   "Constructs a CouchDB store either with name for db or a clutch DB
 object and a tag-table atom, e.g. {'namespace.Symbol (fn [val] ...)}."
-  [db tag-table]
+  [db read-handlers write-handlers]
   (let [db (if (string? db) (couch db) db)]
     (go (try
           (create! db)
-          (CouchKeyValueStore. db tag-table)
+          (CouchKeyValueStore. db (ser/string-serializer) read-handlers write-handlers)
           (catch Exception e
             (ex-info "Cannot open CouchDB."
                      {:type :db-error
@@ -130,8 +109,8 @@ object and a tag-table atom, e.g. {'namespace.Symbol (fn [val] ...)}."
 (comment
   (def couch-store
     (<!! (new-couch-store "geschichte"
-                          (atom {'konserve.platform.Test
-                                 (fn [data] (println "READ:" data))}))))
+                          (atom {})
+                          (atom {}))))
 
   (reset! (:tag-table couch-store) {})
   (<!! (-get-in couch-store ["john"]))
@@ -141,7 +120,7 @@ object and a tag-table atom, e.g. {'namespace.Symbol (fn [val] ...)}."
   (<!! (-update-in couch-store ["john"] inc))
 
   (defrecord Test [a])
-  (<!! (-assoc-in couch-store ["peter"] (Test. 5)))
+  (<!! (-update-in couch-store ["peter"] (fn [_] (Test. 5))))
   (<!! (-get-in couch-store ["peter"]))
 
   (<!! (-update-in couch-store ["hans" :a] (fnil inc 0)))
