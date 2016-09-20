@@ -24,10 +24,14 @@ Add to your leiningen dependencies:
   (<!! (k/get-in couch-store ["peter"]))
 ~~~
 
-## TODO
-- add binary blob support
 
 ## Changes
+
+### 0.1.2
+
+- binary support
+- update to konserve 0.4
+- arbitrary key length (hashing)
 
 ### 0.1.1
 - use new reduced konserve interface and serializers
@@ -37,7 +41,7 @@ Add to your leiningen dependencies:
 
 ## License
 
-Copyright © 2014-2015 Christian Weilbach
+Copyright © 2014-2016 Christian Weilbach
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
