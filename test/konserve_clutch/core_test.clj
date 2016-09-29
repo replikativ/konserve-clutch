@@ -1,13 +1,13 @@
-(ns konserve-couch.core-test
+(ns konserve-clutch.core-test
   (:require [clojure.test :refer :all]
             [konserve.core :as k]
-            [konserve-couch.core :refer :all]
+            [konserve-clutch.core :refer :all]
             [clojure.core.async :refer [<!!]]))
 
 
-(deftest couchdb-store-test
+(deftest clutch-store-test
   (testing "Test the couchdb store functionality."
-    (let [store (<!! (new-couch-store "couchdb-test-store"))]
+    (let [store (<!! (new-clutch-store "couchdb-test-store"))]
       (<!! (k/assoc-in store [:foo] nil))
       (is (= (<!! (k/get-in store [:foo]))
              nil))

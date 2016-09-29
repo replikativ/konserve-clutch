@@ -1,4 +1,4 @@
-(ns konserve-couch.core
+(ns konserve-clutch.core
   "CouchDB store implemented with Clutch."
   (:require [konserve.serializers :as ser]
             [konserve.protocols :refer [-serialize -deserialize]]
@@ -13,7 +13,7 @@
                                         -bassoc -bget]]))
 
 
-(defrecord CouchKeyValueStore [db serializer read-handlers write-handlers locks]
+(defrecord ClutchStore [db serializer read-handlers write-handlers locks]
   PEDNAsyncKeyValueStore
   (-exists? [this key]
     (let [id (str (uuid key))]
@@ -49,7 +49,6 @@
                      new (if-not (empty? rkey)
                            (update-in old rkey up-fn)
                            (up-fn old))]
-                 (prn "NEW" new)
                  (cond (and (not doc) new)
                        [nil (get-in (->> (cl/put-document db {:_id id
                                                               :edn-value #_(pr-str [key-vec new])
@@ -122,9 +121,10 @@
                                                      :mime-type "application/octet-stream"}])))))
 
 
-(defn new-couch-store
-  "Constructs a CouchDB store either with name for db or a clutch DB
-object and a tag-table atom, e.g. {'namespace.Symbol (fn [val] ...)}."
+(defn new-clutch-store
+  "Constructs a clutch CouchDB store either with name for db or a clutch DB
+  object and optionally read and write handlers for custom types according to
+  incognito and a serialization protocol according to konserve."
   [db & {:keys [serializer read-handlers write-handlers]
          :or {serializer (ser/string-serializer)
               read-handlers (atom {})
@@ -132,11 +132,11 @@ object and a tag-table atom, e.g. {'namespace.Symbol (fn [val] ...)}."
   (let [db (if (string? db) (couch db) db)]
     (go (try
           (create! db)
-          (map->CouchKeyValueStore {:db db
-                                    :serializer serializer
-                                    :read-handlers read-handlers
-                                    :write-handlers write-handlers
-                                    :locks (atom {})})
+          (map->ClutchStore {:db db
+                             :serializer serializer
+                             :read-handlers read-handlers
+                             :write-handlers write-handlers
+                             :locks (atom {})})
           (catch Exception e
             (ex-info "Cannot open CouchDB."
                      {:type :db-error
