@@ -5,7 +5,7 @@ A CouchDB implementation of the [konserve kv-protocol](https://github.com/replik
 ## Usage
 
 Add to your leiningen dependencies:
-[![Clojars Project](http://clojars.org/io.replikativ/konserve-couch/latest-version.svg)](http://clojars.org/io.replikativ/konserve-couch)
+[![Clojars Project](http://clojars.org/io.replikativ/konserve-clutch/latest-version.svg)](http://clojars.org/io.replikativ/konserve-clutch)
 
 The whole purpose of konserve is to have a unified associative key-value interface for
 edn datastructures. Just use the standard interface functions of konserve.
