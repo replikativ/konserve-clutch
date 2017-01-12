@@ -62,11 +62,11 @@
                                          second)
                                     rkey)]
 
-                       (and (not doc) (not new))
-                       [nil nil]
+;                       (and (not doc) (not new))
+;                       [nil nil]
 
-                       (not new)
-                       (do (cl/delete-document db doc) [(get-in old rkey) nil])
+;                       (not new)
+;                       (do (cl/delete-document db doc) [(get-in old rkey) nil])
 
                        :else
                        (let [old* (get-in old rkey)
@@ -105,6 +105,18 @@
                      {:type :write-error
                       :key key-vec
                       :exception e})))))
+  (-dissoc [this key]
+    (go
+      (let [id (str (uuid key))
+            doc (cl/get-document db id)]
+        (try
+          (cl/delete-document db doc)
+          nil
+          (catch Exception e
+            (ex-info "Cannot delete key."
+                     {:type :delete-error
+                      :key key
+                      :exception e}))))))
 
   PBinaryAsyncKeyValueStore
   (-bget [this key locked-cb]
